@@ -3,253 +3,137 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>
-      {% block title %}SPIDER — Scan & Port Inspection{% endblock %}
-    </title>
+    <title>{% block title %}SPIDER - Scan & Port Inspection{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-    <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Icons -->
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
-    />
-
-    <!-- Fonts -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Poppins:wght@300;400;600;700&display=swap"
-      rel="stylesheet"
-    />
-
-    <!-- Global Theme -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet" />
     <style>
       :root {
-        --bg: #0d1117;
-        --panel: #0a0f1c;
-        --text: #e5e7eb;
-        --neon: #00ffc6;
-        --neon2: #00d4a3;
+        --bg: #07111f;
+        --panel: rgba(8, 19, 36, 0.82);
+        --text: #e5f6ff;
+        --muted: #8aa6bd;
+        --accent: #4cf2c4;
+        --accent-2: #ffb703;
       }
       body {
-        background: var(--bg);
+        background:
+          radial-gradient(circle at top left, rgba(76, 242, 196, 0.15), transparent 32%),
+          radial-gradient(circle at top right, rgba(255, 183, 3, 0.12), transparent 25%),
+          linear-gradient(180deg, #07111f 0%, #040910 100%);
         color: var(--text);
-        font-family: "Poppins", sans-serif;
+        font-family: 'Poppins', sans-serif;
       }
       .glass {
-        background: rgba(13, 17, 23, 0.55);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        backdrop-filter: blur(10px);
-      }
-      .neon-text {
-        color: var(--neon);
-      }
-      .hover-glow:hover {
-        box-shadow: 0 0 15px rgba(0, 255, 200, 0.4);
+        background: var(--panel);
+        border: 1px solid rgba(138, 166, 189, 0.15);
+        backdrop-filter: blur(12px);
       }
       .brand {
-        font-family: "Orbitron", sans-serif;
-        letter-spacing: 1px;
+        font-family: 'Orbitron', sans-serif;
+        letter-spacing: 0.08em;
+      }
+      .neon-text { color: var(--accent); }
+      .muted { color: var(--muted); }
+      .hover-glow:hover {
+        box-shadow: 0 0 24px rgba(76, 242, 196, 0.16);
+        border-color: rgba(76, 242, 196, 0.4);
       }
       footer {
-        background: rgba(13, 17, 23, 0.55);
+        background: rgba(3, 8, 16, 0.72);
         text-align: center;
         padding: 20px;
-        border-top: 1px solid #222;
-        color: #888;
+        border-top: 1px solid rgba(138, 166, 189, 0.12);
+        color: var(--muted);
         font-size: 0.9rem;
       }
-      footer small {
-        display: block;
-        color: #666;
-        margin-top: 5px;
-      }
     </style>
-
     {% block head_style %}{% endblock %}
   </head>
-
   <body class="min-h-screen">
+    {% if request.user.is_authenticated %}<div class="flex min-h-screen">{% endif %}
+
     {% if request.user.is_authenticated %}
-    <div class="flex">
-      {% endif %}
-
-      <!-- ======================================
-         SIDEBAR (Visible only when logged in)
-    ======================================= -->
-      {% if request.user.is_authenticated %}
-      <aside class="w-64 min-h-screen glass p-5">
-        <div class="text-3xl brand neon-text mb-6 flex items-center gap-3">
-          <i class="fa-solid fa-spider"></i> SPIDER
-        </div>
-
-        <nav class="space-y-2 text-sm">
-          <a
-            class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'home' %}bg-slate-900{% endif %}"
-            href="{% url 'home' %}"
-          >
-            <i class="fa fa-home mr-2"></i> Home
-          </a>
-
-          <a
-            class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'web_dashboard' %}bg-slate-900{% endif %}"
-            href="{% url 'web_dashboard' %}"
-          >
-            <i class="fa fa-shield-alt mr-2"></i> Web Scan Dashboard
-          </a>
-
-
-          <a
-            class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'scanner' %}bg-slate-900{% endif %}"
-            href="{% url 'scanner' %}"
-          >
-            <i class="fa fa-bolt mr-2"></i> Port Scanner
-          </a>
-
-
-          <a
-            class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'web_targets' %}bg-slate-900{% endif %}"
-            href="{% url 'web_targets' %}"
-          >
-            <i class="fa fa-crosshairs mr-2"></i> Targets
-          </a>
-
-          <a
-            class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'web_scans' %}bg-slate-900{% endif %}"
-            href="{% url 'web_scans' %}"
-          >
-            <i class="fa fa-list mr-2"></i> Scan History
-          </a>
-
-          <a
-            class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'web_results' %}bg-slate-900{% endif %}"
-            href="{% url 'web_results' %}"
-          >
-            <i class="fa fa-bug mr-2"></i> Vulnerabilities
-          </a>
-
-          <a
-            class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'web_results' %}bg-slate-900{% endif %}"
-            href="{% url 'make_payment' %}"
-          >
-            <i class="fas fa-credit-card mr-2"></i> Payment
-          </a>
-        </nav>
-
-        <div class="mt-8 text-xs opacity-75">
-          <button id="themeToggle" class="px-3 py-2 border rounded hover-glow">
-            <i class="fa fa-adjust"></i> Toggle Theme
-          </button>
-        </div>
-      </aside>
-      {% endif %}
-
-      <!-- ======================================
-         MAIN CONTENT AREA
-    ======================================= -->
-      <main class="flex-1">
-        <!-- Top Header -->
-        <header
-          class="flex items-center justify-between p-4 border-b border-slate-800 glass"
-        >
-          {% if request.user.is_authenticated %}
-          <h1 class="text-xl brand neon-text">
-            Scan & Port Inspection: Discovery & Exploitation Report
-          </h1>
-          {% else %}
-          <div
-            class="text-3xl brand neon-text mb-6 flex items-center gap-3"
-            title="SPIDER - Scan & Port Inspection: Discovery & Exploitation Report"
-          >
-            <i class="fa-solid fa-spider"></i> SPIDER
-          </div>
-
-          {% endif %}
-          <nav class="text-sm flex items-center gap-4">
-            {% if request.user.is_authenticated %}
-            <span class="opacity-80">{{ request.user.username }}</span>
-            <a
-              href="{% url 'logout' %}"
-              class="px-3 py-2 border rounded hover-glow"
-            >
-              <i class="fa fa-sign-out-alt"></i> Logout
-            </a>
-            {% else %}
-            <a
-              href="{% url 'login' %}"
-              class="px-3 py-2 border rounded hover-glow"
-            >
-              <i class="fa fa-sign-in-alt"></i> Login
-            </a>
-            <a
-              href="{% url 'register' %}"
-              class="px-3 py-2 border rounded hover-glow"
-            >
-              <i class="fa fa-user-plus"></i> Register
-            </a>
-            {% endif %}
-          </nav>
-        </header>
-
-        <!-- Page Body -->
-        <section class="">
-          {% if messages %}
-          <div class="space-y-2 mb-4">
-            {% for message in messages %}
-            <div
-              class="border glass {% if message.tags == 'success' %}border-emerald-400{% else %}border-rose-400{% endif %}"
-            >
-              {{ message }}
-            </div>
-            {% endfor %}
-          </div>
-          {% endif %} {% block page_wrapper %}
-          <div class="w-full flex justify-center">
-            <div class="glass shadow-lg w-full">
-              {% block content %}{% endblock %}
-            </div>
-          </div>
-          {% endblock %}
-        </section>
-
-        <!-- Footer -->
-        <footer>
-          © 2025 SPIDER — Scan & Port Inspection: Discovery & Exploitation
-          Report
-          <small>Security scanning subject to legal usage policies.</small>
-        </footer>
-      </main>
-
-      {% if request.user.is_authenticated %}
-    </div>
+    <aside class="w-72 glass p-5">
+      <div class="text-3xl brand neon-text mb-6 flex items-center gap-3">
+        <i class="fa-solid fa-spider"></i> SPIDER
+      </div>
+      <nav class="space-y-2 text-sm">
+        <a class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'home' %}bg-slate-900/70{% endif %}" href="{% url 'home' %}">
+          <i class="fa fa-home mr-2"></i> Home
+        </a>
+        <a class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'scanner' %}bg-slate-900/70{% endif %}" href="{% url 'scanner' %}">
+          <i class="fa fa-bolt mr-2"></i> Port Scanner
+        </a>
+        <a class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'scan_history' %}bg-slate-900/70{% endif %}" href="{% url 'scan_history' %}">
+          <i class="fa fa-clock-rotate-left mr-2"></i> Port Scan History
+        </a>
+        <a class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'web_dashboard' %}bg-slate-900/70{% endif %}" href="{% url 'web_dashboard' %}">
+          <i class="fa fa-shield-alt mr-2"></i> Web Scan Dashboard
+        </a>
+        <a class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'web_targets' %}bg-slate-900/70{% endif %}" href="{% url 'web_targets' %}">
+          <i class="fa fa-crosshairs mr-2"></i> Targets
+        </a>
+        <a class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'web_scans' %}bg-slate-900/70{% endif %}" href="{% url 'web_scans' %}">
+          <i class="fa fa-list mr-2"></i> Web Scan History
+        </a>
+        <a class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'web_results' %}bg-slate-900/70{% endif %}" href="{% url 'web_results' %}">
+          <i class="fa fa-bug mr-2"></i> Vulnerabilities
+        </a>
+        <a class="block px-3 py-2 rounded hover-glow {% if request.resolver_match.url_name == 'make_payment' %}bg-slate-900/70{% endif %}" href="{% url 'make_payment' %}">
+          <i class="fas fa-credit-card mr-2"></i> Payment
+        </a>
+      </nav>
+    </aside>
     {% endif %}
 
-    <!-- Theme Toggle Script -->
-    <script>
-      const toggle = document.getElementById("themeToggle");
-      if (toggle) {
-        toggle.addEventListener("click", () => {
-          const root = document.documentElement;
-          const currentDark =
-            getComputedStyle(root).getPropertyValue("--bg").trim() ===
-            "#0d1117";
+    <main class="flex-1">
+      <header class="flex items-center justify-between p-4 border-b border-slate-800/70 glass">
+        {% if request.user.is_authenticated %}
+        <h1 class="text-xl brand neon-text">Scan & Port Inspection: Discovery & Exploitation Report
+</h1>
+        {% else %}
+        <div class="text-3xl brand neon-text flex items-center gap-3">
+          <i class="fa-solid fa-spider"></i> SPIDER
+        </div>
+        {% endif %}
+        <nav class="text-sm flex items-center gap-4">
+          {% if request.user.is_authenticated %}
+          <span class="muted">{{ request.user.username }}</span>
+          <a href="{% url 'logout' %}" class="px-3 py-2 border rounded hover-glow">Logout</a>
+          {% else %}
+          <a href="{% url 'login' %}" class="px-3 py-2 border rounded hover-glow">Login</a>
+          <a href="{% url 'register' %}" class="px-3 py-2 border rounded hover-glow">Register</a>
+          {% endif %}
+        </nav>
+      </header>
 
-          if (currentDark) {
-            root.style.setProperty("--bg", "#f7fafc");
-            root.style.setProperty("--panel", "#ffffff");
-            root.style.setProperty("--text", "#0d1117");
-          } else {
-            root.style.setProperty("--bg", "#0d1117");
-            root.style.setProperty("--panel", "#0a0f1c");
-            root.style.setProperty("--text", "#e5e7eb");
-          }
-        });
-      }
-    </script>
+      <section>
+        {% if messages %}
+        <div class="space-y-2 m-4">
+          {% for message in messages %}
+          <div class="glass rounded px-4 py-3 {% if message.tags == 'success' %}border-emerald-400{% else %}border-rose-400{% endif %}">
+            {{ message }}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% block page_wrapper %}
+        <div class="w-full flex justify-center p-4 md:p-6">
+          <div class="w-full max-w-6xl">{% block content %}{% endblock %}</div>
+        </div>
+        {% endblock %}
+      </section>
 
+      <footer>
+        &copy; 2026 SPIDER - Ethical security assessment toolkit.
+      </footer>
+    </main>
+
+    {% if request.user.is_authenticated %}</div>{% endif %}
     {% block extra_scripts %}{% endblock %}
   </body>
 </html>

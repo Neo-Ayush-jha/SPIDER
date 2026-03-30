@@ -1,152 +1,248 @@
-import razorpay
-import uuid, json
-from .models import *
-from .tasks import run_scan
-from django.conf import settings
-from .port_info import PORT_DETAILS
-from django.contrib import messages
-from django.contrib.auth.models import User
-from django.http import JsonResponse, HttpResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth import authenticate, login, logout
-from django.shortcuts import render, get_object_or_404, redirect
+import csv
+import json
+import uuid
 
-import socket
+import razorpay
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
+from django.http import Http404, HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.csrf import csrf_exempt
+
+from .models import PaymentRecord, ScanTask, UserProfile
+from .ai_explainer import explain_open_port, explain_vulnerability
+from .security import SCAN_PRESETS, analyze_scan_results, normalize_port_input, resolve_target, sanitize_target
+from .tasks import run_scan
+
 
 def index(request):
-    return render(request, 'scanner/index.html')
+    return render(request, 'scanner/index.html', {'scan_presets': SCAN_PRESETS})
 
-import socket
 
-def resolve_to_ip(target):
-    try:
-        clean = target.replace("http://", "").replace("https://", "")
-        clean = clean.split("/")[0]
-        return socket.gethostbyname(clean)
-    except Exception:
-        return None
+def home(request):
+    recent_scans = []
+    if request.user.is_authenticated:
+        recent_scans = ScanTask.objects.filter(user=request.user).order_by('-created_at')[:5]
+    return render(request, 'scanner/home.html', {'recent_scans': recent_scans, 'scan_presets': SCAN_PRESETS})
 
-@csrf_exempt
+
+@login_required
+def scan_history(request):
+    scans = ScanTask.objects.filter(user=request.user).order_by('-created_at')[:25]
+    return render(request, 'scanner/history.html', {'scans': scans})
+
+
+@login_required
+def scan_detail(request, scan_id):
+    scan = _scan_or_404(scan_id, request.user)
+    results = list(scan.scanresult_set.values('port', 'state', 'service'))
+    summary, findings = analyze_scan_results(results)
+    _attach_ai_explanations(scan, results, findings)
+
+    context = {
+        'scan': scan,
+        'summary': summary,
+        'findings': findings[:8],
+        'results': results,
+    }
+    return render(request, 'scanner/scan_detail.html', context)
+
+
+def _scan_or_404(scan_id, user):
+    scan = get_object_or_404(ScanTask, pk=scan_id)
+    if scan.user_id and scan.user_id != user.id and not user.is_staff:
+        raise Http404('Scan not found.')
+    return scan
+
+
+def _attach_ai_explanations(scan, results, findings):
+    if scan.status != 'COMPLETED':
+        return
+
+    for result in results:
+        if (result.get('state') or '').lower() != 'open':
+            continue
+        detail, provider = explain_open_port(
+            int(result.get('port') or 0),
+            result.get('service', ''),
+            result.get('state', ''),
+        )
+        result['ai_detail'] = detail
+        result['ai_provider'] = provider
+
+    for finding in findings:
+        detail, provider = explain_vulnerability(
+            finding.get('title', ''),
+            finding.get('category', ''),
+            int(finding.get('port') or 0),
+            finding.get('recommendation', ''),
+        )
+        finding['ai_detail'] = detail
+        finding['ai_provider'] = provider
+
+
 @login_required
 def start_scan(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'POST only'}, status=405)
 
-    data = json.loads(request.body.decode('utf-8'))
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON payload.'}, status=400)
+
     target_input = data.get('target')
-    ports = data.get('ports', '1-1024')
+    requested_ports = data.get('ports', '1-1024')
+    scan_profile = data.get('profile', 'custom')
 
-    if not target_input:
-        return JsonResponse({'error': 'Target required'}, status=400)
+    try:
+        requested_target, normalized_target = sanitize_target(target_input)
+        ports = normalize_port_input(requested_ports)
+    except ValueError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
 
-    # Convert domain → IP before scan
-    target_ip = resolve_to_ip(target_input)
+    if scan_profile not in SCAN_PRESETS:
+        scan_profile = 'custom'
 
+    target_ip = resolve_target(normalized_target)
     if not target_ip:
-        return JsonResponse(
-            {'error': 'Invalid domain or IP. Unable to resolve.'},
-            status=400
-        )
+        return JsonResponse({'error': 'Invalid domain or IP. Unable to resolve target.'}, status=400)
 
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
-#----------------- Free plan limit 3 scans----------
-    
-    # if (not profile.has_paid) and profile.scan_count >= 3:
-    #     return JsonResponse({
-    #         'error': 'Free scan limit reached. Payment required to continue.',
-    #         'payment_required': True
-    #     }, status=403)
-#----------------- Free plan limit 3 scans----------
-
-    # Create scan task
     unique_task = str(uuid.uuid4())
     scan = ScanTask.objects.create(
+        user=request.user,
         task_id=unique_task,
-        target=target_ip,        # Save resolved IP
+        requested_target=requested_target,
+        target=target_ip,
         port_range=ports,
-        status='PENDING'
+        scan_profile=scan_profile,
+        status='PENDING',
     )
 
     async_result = run_scan.delay(scan.id)
-
-    # Increase count only after scan queued
     profile.scan_count += 1
-    profile.save()
+    profile.save(update_fields=['scan_count'])
 
     return JsonResponse({
         'scan_db_id': scan.id,
         'task_uuid': unique_task,
-        'celery_id': async_result.id
+        'celery_id': async_result.id,
+        'resolved_target': target_ip,
+        'profile': scan_profile,
+        'ports': ports,
     })
 
 
-
+@login_required
 def scan_status(request, scan_id):
-    scan = get_object_or_404(ScanTask, pk=scan_id)
+    scan = _scan_or_404(scan_id, request.user)
     results = list(scan.scanresult_set.values('port', 'state', 'service'))
+    summary, findings = analyze_scan_results(results)
+    _attach_ai_explanations(scan, results, findings)
 
-    for r in results:
-        port_info = PORT_DETAILS.get(r['port'], None)
-        if port_info:
-            r['name'] = port_info['name']
-            r['description'] = port_info['description']
-            r['risk_level'] = port_info['risk_level']
-            r['usage'] = port_info['usage']
-        else:
-            r['name'] = "Unknown Port"
-            r['description'] = "No detailed information found for this port."
-            r['risk_level'] = "Unknown"
-            r['usage'] = "N/A"
+    if scan.risk_score != summary['risk_score']:
+        scan.risk_score = summary['risk_score']
+        scan.save(update_fields=['risk_score'])
 
     return JsonResponse({
         'scan_db_id': scan.id,
         'target': scan.target,
+        'requested_target': scan.requested_target or scan.target,
         'status': scan.status,
+        'profile': scan.scan_profile,
+        'port_range': scan.port_range,
+        'risk_score': scan.risk_score,
         'results': results,
-        'start_time': scan.start_time,
-        'end_time': scan.end_time
+        'summary': summary,
+        'findings': findings[:8],
+        'start_time': scan.start_time.isoformat() if scan.start_time else None,
+        'end_time': scan.end_time.isoformat() if scan.end_time else None,
     })
-    
+
+
+@login_required
 def export_csv(request, scan_id):
-    scan = get_object_or_404(ScanTask, pk=scan_id)
-    results = scan.scanresult_set.all().order_by('port')
+    scan = _scan_or_404(scan_id, request.user)
+    results = list(scan.scanresult_set.values('port', 'state', 'service'))
+    summary, findings = analyze_scan_results(results)
+    _attach_ai_explanations(scan, results, findings)
 
-    lines = ['port,name,state,service,risk_level,description,usage']
-    for r in results:
-        port_info = PORT_DETAILS.get(r.port, None)
-        if port_info:
-            lines.append(f"{r.port},{port_info['name']},{r.state},{r.service or ''},{port_info['risk_level']},{port_info['description']},{port_info['usage']}")
-        else:
-            lines.append(f"{r.port},Unknown,{r.state},{r.service or ''},Unknown,No description,N/A")
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="scan_{scan_id}.csv"'
 
-    resp = HttpResponse('\n'.join(lines), content_type='text/csv')
-    resp['Content-Disposition'] = f'attachment; filename=\"scan_{scan_id}.csv\"'
-    return resp
+    writer = csv.writer(response)
+    writer.writerow(['requested_target', scan.requested_target or scan.target])
+    writer.writerow(['resolved_target', scan.target])
+    writer.writerow(['scan_profile', scan.scan_profile])
+    writer.writerow(['port_range', scan.port_range])
+    writer.writerow(['risk_score', summary['risk_score']])
+    writer.writerow([])
+    writer.writerow(['port', 'name', 'state', 'service', 'risk_level', 'category', 'description', 'usage', 'ai_provider', 'ai_detail'])
 
-def home(request):
-    return render(request, 'scanner/home.html')
+    for row in results:
+        writer.writerow([
+            row['port'],
+            row['name'],
+            row['state'],
+            row.get('service', ''),
+            row['risk_level'],
+            row['category'],
+            row['description'],
+            row['usage'],
+            row.get('ai_provider', ''),
+            row.get('ai_detail', ''),
+        ])
+
+    return response
+
+
+@login_required
+def export_json(request, scan_id):
+    scan = _scan_or_404(scan_id, request.user)
+    results = list(scan.scanresult_set.values('port', 'state', 'service'))
+    summary, findings = analyze_scan_results(results)
+    _attach_ai_explanations(scan, results, findings)
+    payload = {
+        'scan_id': scan.id,
+        'requested_target': scan.requested_target or scan.target,
+        'resolved_target': scan.target,
+        'profile': scan.scan_profile,
+        'port_range': scan.port_range,
+        'status': scan.status,
+        'summary': summary,
+        'findings': findings[:8],
+        'results': results,
+        'start_time': scan.start_time.isoformat() if scan.start_time else None,
+        'end_time': scan.end_time.isoformat() if scan.end_time else None,
+    }
+    response = HttpResponse(json.dumps(payload, indent=2), content_type='application/json')
+    response['Content-Disposition'] = f'attachment; filename="scan_{scan_id}.json"'
+    return response
 
 
 def register_user(request):
-    if request.method == "POST":
-        username = request.POST.get("username")
-        email = request.POST.get("email")
-        password = request.POST.get("password")
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        email = request.POST.get('email')
+        password = request.POST.get('password')
 
         if not username or not password:
-            messages.error(request, "Username and password required.")
+            messages.error(request, 'Username and password required.')
             return redirect('register')
 
         if User.objects.filter(username=username).exists():
-            messages.error(request, "Username already taken.")
+            messages.error(request, 'Username already taken.')
             return redirect('register')
 
         user = User.objects.create_user(username=username, email=email, password=password)
         user.save()
 
-        messages.success(request, "Registration successful. Please login.")
+        messages.success(request, 'Registration successful. Please login.')
         return redirect('login')
 
     return render(request, 'scanner/register.html')
@@ -154,17 +250,17 @@ def register_user(request):
 
 
 def login_user(request):
-    if request.method == "POST":
-        username = request.POST.get("username")
-        password = request.POST.get("password")
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
         user = authenticate(request, username=username, password=password)
         if user:
             login(request, user)
             return redirect('home')
-        else:
-            messages.error(request, "Invalid credentials.")
-            return redirect('login')
+        messages.error(request, 'Invalid credentials.')
+        return redirect('login')
     return render(request, 'scanner/login.html')
+
 
 def logout_user(request):
     logout(request)
@@ -173,12 +269,11 @@ def logout_user(request):
 
 @login_required
 def make_payment(request):
-    """Create Razorpay order and render payment page."""
     client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_SECRET))
-    amount_rupees = 49  
+    amount_rupees = 49
     amount_paise = int(amount_rupees * 100)
     razor_order = client.order.create({'amount': amount_paise, 'currency': 'INR', 'payment_capture': 1})
-    payment = PaymentRecord.objects.create(user=request.user, razorpay_order_id=razor_order['id'], amount=amount_rupees)
+    PaymentRecord.objects.create(user=request.user, razorpay_order_id=razor_order['id'], amount=amount_rupees)
     context = {
         'order': razor_order,
         'key_id': settings.RAZORPAY_KEY_ID,
@@ -189,7 +284,6 @@ def make_payment(request):
 
 @csrf_exempt
 def verify_payment(request):
-    """Verify signature returned by Razorpay (called from frontend)."""
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
     try:
@@ -202,12 +296,11 @@ def verify_payment(request):
         params = {
             'razorpay_order_id': razorpay_order_id,
             'razorpay_payment_id': razorpay_payment_id,
-            'razorpay_signature': razorpay_signature
+            'razorpay_signature': razorpay_signature,
         }
         try:
             client.utility.verify_payment_signature(params)
         except razorpay.errors.SignatureVerificationError:
-            # signature invalid
             return JsonResponse({'status': 'failed', 'reason': 'signature_invalid'}, status=400)
 
         payment = PaymentRecord.objects.filter(razorpay_order_id=razorpay_order_id).first()
@@ -219,12 +312,13 @@ def verify_payment(request):
         payment.status = 'SUCCESS'
         payment.save()
 
-        # mark user as paid and reset count
         profile = UserProfile.objects.get(user=payment.user)
         profile.has_paid = True
         profile.scan_count = 0
-        profile.save()
+        profile.save(update_fields=['has_paid', 'scan_count'])
 
         return JsonResponse({'status': 'success'})
-    except Exception as e:
-        return JsonResponse({'status': 'error', 'error': str(e)}, status=500)
+    except Exception as exc:
+        return JsonResponse({'status': 'error', 'error': str(exc)}, status=500)
+
+

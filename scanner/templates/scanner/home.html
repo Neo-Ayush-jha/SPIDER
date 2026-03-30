@@ -1,144 +1,84 @@
 {% extends "scanner/base.html" %}
-{% block title %}SPIDER — Scan & Port Inspection{% endblock %}
-
-{% block head_style %}
-{{ block.super }}
-<style>
-
-    /* Hero Section Matching New UI */
-    .hero-section {
-        min-height: 75vh;
-        background: linear-gradient(
-            rgba(0, 0, 0, 0.75),
-            rgba(0, 0, 0, 0.85)
-        ), 
-        url("https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=1920&q=80")
-        center/cover no-repeat;
-
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        padding: 30px;
-        text-align: center;
-        border-radius: 12px;
-        box-shadow: 0 0 25px rgba(0,255,199,0.08);
-    }
-
-    .hero-section h2 {
-        font-size: 3rem;
-        color: var(--neon);
-        font-family: 'Orbitron', sans-serif;
-        font-weight: 700;
-        margin-bottom: 15px;
-    }
-
-    .hero-section p {
-        color: var(--text);
-        font-size: 1.1rem;
-        max-width: 650px;
-        line-height: 1.6;
-        opacity: 0.9;
-        margin-bottom: 30px;
-    }
-
-    .hero-section button {
-        background: var(--neon);
-        color: #000;
-        padding: 12px 35px;
-        font-weight: 600;
-        border-radius: 30px;
-        transition: 0.3s;
-        font-size: 1rem;
-    }
-
-    .hero-section button:hover {
-        background: var(--neon2);
-        transform: scale(1.07);
-        box-shadow: 0 0 15px var(--neon2);
-    }
-
-    /* Features Section */
-    .features-section {
-        margin-top: 50px;
-        padding: 20px;
-    }
-
-    .features-section h3 {
-        color: var(--neon);
-        text-align: center;
-        font-size: 2rem;
-        font-family: 'Orbitron', sans-serif;
-        margin-bottom: 30px;
-    }
-
-    .feature-card {
-        background: rgba(255,255,255,0.03);
-        border: 1px solid rgba(255,255,255,0.09);
-        padding: 25px;
-        border-radius: 12px;
-        text-align: center;
-        transition: 0.3s;
-        box-shadow: 0 0 8px rgba(0,255,199,0.06);
-    }
-
-    .feature-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 0 25px rgba(0,255,199,0.18);
-    }
-
-    .feature-card h4 {
-        color: var(--neon2);
-        margin-bottom: 10px;
-        font-size: 1.2rem;
-    }
-</style>
-{% endblock %}
-
+{% block title %}SPIDER - Cybersecurity Workspace{% endblock %}
 
 {% block content %}
-
-<!-- HERO SECTION -->
-<div class="hero-section">
-    <h2>Scan & Port Inspection: Discovery & Exploitation Report</h2>
-    <p class="text-black/40">
-        A powerful cyber-security toolkit that includes Port Scanning, 
-        Web Vulnerability Scanning, Report Generation & Real-time Monitoring.
-    </p>
-
-    <button onclick="window.location.href='{% url 'scanner' %}'">
-        Start Scanning
-    </button>
-</div>
-
-
-<!-- FEATURES SECTION -->
-<div class="features-section">
-    <h3>Key Features</h3>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-
-        <div class="feature-card">
-            <h4>⚡ Fast Port Scanning</h4>
-            <p>Async scanning for rapid port enumeration using optimized background tasks.</p>
+<div class="space-y-6">
+  <section class="glass rounded-3xl p-8 md:p-10 overflow-hidden relative">
+    <div class="absolute inset-0 opacity-30" style="background: radial-gradient(circle at top left, rgba(76, 242, 196, 0.18), transparent 35%), radial-gradient(circle at bottom right, rgba(255, 183, 3, 0.12), transparent 30%);"></div>
+    <div class="relative grid md:grid-cols-2 gap-8 items-center">
+      <div>
+        <p class="uppercase tracking-[0.3em] text-xs muted mb-3">Threat Exposure Mapping</p>
+        <h2 class="brand text-3xl md:text-5xl leading-tight neon-text mb-4">Enhance your recon workflow with faster triage and safer reporting.</h2>
+        <p class="muted text-base md:text-lg mb-6">SPIDER now combines port enumeration, exposure scoring, preset-based recon, and exportable findings so you can move from raw scan data to cybersecurity decisions faster.</p>
+        <div class="flex flex-wrap gap-3">
+          <a href="{% url 'scanner' %}" class="px-5 py-3 rounded-full bg-emerald-300 text-slate-950 font-semibold">Launch Port Scanner</a>
+          <a href="{% url 'scan_history' %}" class="px-5 py-3 rounded-full border border-slate-600 hover-glow">Review History</a>
         </div>
-
-        <div class="feature-card">
-            <h4>🛡 Full Web Vulnerability Scan</h4>
-            <p>SQLi, XSS, Headers, Misconfig — industry-standard security checks.</p>
+      </div>
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="glass rounded-2xl p-5 hover-glow">
+          <div class="text-3xl mb-3">01</div>
+          <h3 class="font-semibold text-lg">Recon Presets</h3>
+          <p class="muted text-sm mt-2">Quick, web, remote access, and database-focused port profiles for common attack-surface reviews.</p>
         </div>
-
-        <div class="feature-card">
-            <h4>📊 Real-time Progress</h4>
-            <p>Live scan updates with automatic refresh for accuracy and speed.</p>
+        <div class="glass rounded-2xl p-5 hover-glow">
+          <div class="text-3xl mb-3">02</div>
+          <h3 class="font-semibold text-lg">Risk Scoring</h3>
+          <p class="muted text-sm mt-2">Each scan now produces an exposure score with prioritized findings and hardening guidance.</p>
         </div>
-
-        <div class="feature-card">
-            <h4>📁 PDF / CSV Reports</h4>
-            <p>Generate professional security reports for audits and compliance.</p>
+        <div class="glass rounded-2xl p-5 hover-glow">
+          <div class="text-3xl mb-3">03</div>
+          <h3 class="font-semibold text-lg">Protected History</h3>
+          <p class="muted text-sm mt-2">Port-scan records are tied to the authenticated user instead of being exposed globally by ID.</p>
         </div>
-
+        <div class="glass rounded-2xl p-5 hover-glow">
+          <div class="text-3xl mb-3">04</div>
+          <h3 class="font-semibold text-lg">JSON + CSV Reports</h3>
+          <p class="muted text-sm mt-2">Share machine-readable or analyst-friendly reports with target, findings, and summary metadata.</p>
+        </div>
+      </div>
     </div>
-</div>
+  </section>
 
+  {% if request.user.is_authenticated %}
+  <section class="grid lg:grid-cols-2 gap-6">
+    <div class="glass rounded-2xl p-6">
+      <h3 class="brand text-xl neon-text mb-4">Preset Profiles</h3>
+      <div class="space-y-3">
+        {% for preset_key, preset in scan_presets.items %}
+        <div class="flex items-center justify-between gap-4 border border-slate-800/70 rounded-xl px-4 py-3">
+          <div>
+            <div class="font-semibold">{{ preset.label }}</div>
+            <div class="muted text-sm">{{ preset.ports }}</div>
+          </div>
+          <a href="{% url 'scanner' %}" class="text-sm text-emerald-300">Use preset</a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="glass rounded-2xl p-6">
+      <h3 class="brand text-xl neon-text mb-4">Recent Port Scans</h3>
+      {% if recent_scans %}
+      <div class="space-y-3">
+        {% for scan in recent_scans %}
+        <div class="border border-slate-800/70 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
+          <div>
+            <div class="font-semibold">{{ scan.requested_target|default:scan.target }}</div>
+            <div class="muted text-sm">{{ scan.scan_profile|title }} profile • {{ scan.port_range }} • {{ scan.status }}</div>
+          </div>
+          <div class="text-right">
+            <div class="text-sm muted">Risk Score</div>
+            <div class="text-xl font-semibold {% if scan.risk_score >= 60 %}text-rose-400{% elif scan.risk_score >= 30 %}text-amber-300{% else %}text-emerald-300{% endif %}">{{ scan.risk_score }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="muted">No port scans yet. Launch your first recon run to build a history of findings.</p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+</div>
 {% endblock %}

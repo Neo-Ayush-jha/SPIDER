@@ -1,35 +1,13 @@
+import os
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+
 from celery import shared_task
 from django.utils import timezone
-from .models import ScanTask, ScanResult
-import subprocess
-import xml.etree.ElementTree as ET
-import os
-import sys
-from urllib.parse import urlparse
 
-
-def extract_hostname(target: str) -> str:
-    """
-    Converts domain/URL/IP into a pure hostname or IP.
-    """
-    if not target:
-        return None
-
-    target = target.strip()
-
-    # Already an IPv4?
-    parts = target.split('.')
-    if len(parts) == 4 and all(p.isdigit() for p in parts):
-        return target
-
-    # Parse URL
-    parsed = urlparse(target if "://" in target else "http://" + target)
-
-    hostname = parsed.hostname
-    if hostname:
-        return hostname
-
-    return target
+from .models import ScanResult, ScanTask
+from .security import analyze_scan_results
 
 
 @shared_task(bind=True)
@@ -41,20 +19,19 @@ def run_scan(self, scan_id):
 
     scan.status = 'RUNNING'
     scan.start_time = timezone.now()
-    scan.save()
+    scan.save(update_fields=['status', 'start_time'])
 
     target = scan.target
     ports = scan.port_range
 
-    # Full path to Nmap (Windows)
     nmap_path = r"C:\Program Files (x86)\Nmap\nmap.exe"
     if not os.path.exists(nmap_path):
         scan.status = 'FAILED'
         scan.end_time = timezone.now()
-        scan.save()
+        scan.save(update_fields=['status', 'end_time'])
         return {'error': f'nmap not found at {nmap_path}'}
 
-    scan_type = '-sT'  
+    scan_type = '-sT'
     if sys.platform.startswith('win'):
         try:
             import ctypes
@@ -64,23 +41,22 @@ def run_scan(self, scan_id):
         except Exception:
             pass
 
-    try:
-        xml_out = subprocess.check_output(
-            [nmap_path, scan_type, '-Pn', '-p', ports, '-oX', '-', target],
-            text=True,
-            stderr=subprocess.STDOUT
-        )
-    except subprocess.CalledProcessError as e:
-        scan.status = 'FAILED'
-        scan.end_time = timezone.now()
-        scan.save()
-        return {'error': 'nmap scan failed', 'details': e.output}
-    except Exception as e:
-        scan.status = 'FAILED'
-        scan.end_time = timezone.now()
-        scan.save()
-        return {'error': 'unexpected error', 'details': str(e)}
+    command = [nmap_path, scan_type, '-Pn', '-sV', '--version-light', '-p', ports, '-oX', '-', target]
 
+    try:
+        xml_out = subprocess.check_output(command, text=True, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as exc:
+        scan.status = 'FAILED'
+        scan.end_time = timezone.now()
+        scan.save(update_fields=['status', 'end_time'])
+        return {'error': 'nmap scan failed', 'details': exc.output}
+    except Exception as exc:
+        scan.status = 'FAILED'
+        scan.end_time = timezone.now()
+        scan.save(update_fields=['status', 'end_time'])
+        return {'error': 'unexpected error', 'details': str(exc)}
+
+    created_rows = []
     try:
         root = ET.fromstring(xml_out)
         for host in root.findall('host'):
@@ -101,15 +77,18 @@ def run_scan(self, scan_id):
                             state=state,
                             service=service,
                             reason=reason,
-                            ttl=ttl
+                            ttl=ttl,
                         )
-    except ET.ParseError as e:
+                        created_rows.append({'port': portid, 'state': state, 'service': service})
+    except ET.ParseError as exc:
         scan.status = 'FAILED'
         scan.end_time = timezone.now()
-        scan.save()
-        return {'error': 'failed to parse nmap XML', 'details': str(e)}
+        scan.save(update_fields=['status', 'end_time'])
+        return {'error': 'failed to parse nmap XML', 'details': str(exc)}
 
+    summary, _ = analyze_scan_results(created_rows)
     scan.status = 'COMPLETED'
     scan.end_time = timezone.now()
-    scan.save()
-    return {'status': 'completed', 'scan_id': scan_id}
+    scan.risk_score = summary['risk_score']
+    scan.save(update_fields=['status', 'end_time', 'risk_score'])
+    return {'status': 'completed', 'scan_id': scan_id, 'risk_score': scan.risk_score}

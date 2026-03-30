@@ -1,408 +1,435 @@
-{% extends "scanner/base.html" %}
-{% block title %}SPIDER — Scan & Port Inspection{% endblock %}
+﻿{% extends "scanner/base.html" %}
+{% block title %}SPIDER - Port Scanner{% endblock %}
 
-{% block head_style %}
-{{ block.super }}
-<style>
-  main.scanner {
-    max-width: 820px;
-    margin: 60px auto;
-    background: rgba(13, 17, 23, 0.55);
-    padding: 40px;
-    border-radius: 16px;
-    box-shadow: 0 0 25px rgba(0, 255, 198, 0.08);
-  }
+{% block content %}
+<div class="grid xl:grid-cols-[1.1fr_0.9fr] gap-6">
+  <section class="glass rounded-3xl p-6 md:p-8">
+    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
+      <div class="max-w-2xl">
+        <p class="uppercase tracking-[0.3em] text-xs muted mb-2">Active Recon</p>
+        <h2 class="brand text-3xl md:text-4xl neon-text leading-tight">Port and Service Enumeration</h2>
+        <p class="muted mt-3 text-base md:text-lg">Run targeted reconnaissance with scan presets, validated targets, exposure scoring, and prioritized cybersecurity findings.</p>
+      </div>
+      <div class="glass rounded-2xl px-4 py-3 text-left md:text-right min-w-[190px] self-start">
+        <div class="text-sm muted">Recommended Scope</div>
+        <div class="font-semibold text-lg">Authorized systems only</div>
+      </div>
+    </div>
 
-  h2 {
-    text-align: center;
-    color: #00ffc6;
-    margin-bottom: 20px;
-  }
+    <div id="messageArea" class="hidden rounded-2xl px-4 py-3 mb-5 border text-sm"></div>
 
-  label {
-    display: block;
-    margin-top: 20px;
-    color: #ccc;
-    font-weight: 600;
-  }
+    <div class="grid md:grid-cols-2 gap-4">
+      <div>
+        <label for="target" class="block text-sm font-semibold mb-2">Target</label>
+        <input id="target" class="w-full px-4 py-3 rounded-xl bg-slate-950/60 border border-slate-700 focus:outline-none focus:border-emerald-300" placeholder="example.com or 45.33.32.156" />
+      </div>
+      <div>
+        <label for="profile" class="block text-sm font-semibold mb-2">Scan Profile</label>
+        <select id="profile" class="w-full px-4 py-3 rounded-xl bg-slate-950/60 border border-slate-700 focus:outline-none focus:border-emerald-300">
+          {% for preset_key, preset in scan_presets.items %}
+          <option value="{{ preset_key }}">{{ preset.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
 
-  input {
-    width: 100%;
-    padding: 12px 15px;
-    border-radius: 8px;
-    border: 1px solid #333;
-    margin-top: 6px;
-    background: #1a1a1a;
-    color: #eee;
-    font-size: 1rem;
-  }
+    <div class="mt-4">
+      <label for="ports" class="block text-sm font-semibold mb-2">Ports</label>
+      <input id="ports" class="w-full px-4 py-3 rounded-xl bg-slate-950/60 border border-slate-700 focus:outline-none focus:border-emerald-300" placeholder="1-1024 or 22,80,443" value="1-1024" />
+      <p class="muted text-sm mt-2">Preset pick karo ya custom port list likho. Long lists auto-select ho jayengi, card ke andar full number dump nahi dikhaya jayega.</p>
+    </div>
 
-  input:focus {
-    outline: none;
-    border-color: #00ffc6;
-  }
+    <div class="mt-6">
+      <div class="flex items-center justify-between gap-4 mb-3">
+        <h3 class="text-sm font-semibold uppercase tracking-[0.2em] muted">Quick Presets</h3>
+        <span id="activePresetLabel" class="text-sm text-emerald-300">Quick Recon selected</span>
+      </div>
+      <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {% for preset_key, preset in scan_presets.items %}
+        <button
+          type="button"
+          class="preset-btn rounded-2xl border border-slate-700 bg-slate-950/40 px-4 py-4 text-left hover-glow transition min-h-[118px] flex flex-col justify-between"
+          data-profile="{{ preset_key }}"
+          data-ports="{{ preset.ports }}"
+          data-label="{{ preset.label }}"
+        >
+          <div>
+            <div class="font-semibold text-lg leading-snug">{{ preset.label }}</div>
+            <div class="muted text-xs uppercase tracking-[0.18em] mt-1">Preset</div>
+          </div>
+          <div class="mt-3">
+            <div class="inline-flex items-center rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 max-w-full truncate">
+              {{ preset.ports|truncatechars:28 }}
+            </div>
+          </div>
+        </button>
+        {% endfor %}
+      </div>
+    </div>
 
-  #messageArea {
-    color: #ff4d4d;
-    background: #331111;
-    border: 1px solid #552222;
-    padding: 10px;
-    border-radius: 8px;
-    margin-top: 20px;
-    font-weight: 600;
-    display: none;
-  }
+    <button id="startBtn" class="mt-6 w-full px-6 py-4 rounded-2xl bg-emerald-300 text-slate-950 font-semibold text-lg hover:bg-emerald-200 transition">Start Cyber Scan</button>
 
-  button {
-    margin-top: 25px;
-    background: #00ffc6;
-    color: #000;
-    border: none;
-    padding: 12px 28px;
-    border-radius: 30px;
-    cursor: pointer;
-    font-weight: 600;
-    width: 100%;
-    transition: background 0.3s, transform 0.2s, opacity 0.3s;
-  }
+    <div id="statusArea" class="hidden mt-8 space-y-6">
+      <div class="glass rounded-2xl p-5">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div class="muted text-sm">Scan Status</div>
+            <div class="text-2xl font-semibold"><span id="scanStatus">Waiting</span> <span id="loadingDots">...</span></div>
+          </div>
+          <div class="text-left md:text-right">
+            <div class="muted text-sm">Target</div>
+            <div id="resolvedTarget" class="font-semibold break-all">-</div>
+          </div>
+        </div>
+      </div>
 
-  button:hover:not(:disabled) {
-    background: #00d4a3;
-    transform: scale(1.03);
-  }
+      <div id="summaryGrid" class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4"></div>
 
-  button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
+      <div class="grid lg:grid-cols-2 gap-6">
+        <div class="glass rounded-2xl p-5">
+          <h3 class="brand text-xl neon-text mb-4">Priority Findings</h3>
+          <div id="findingsArea" class="space-y-3 muted">No findings yet.</div>
+        </div>
+        <div class="glass rounded-2xl p-5">
+          <h3 class="brand text-xl neon-text mb-4">Defensive Guidance</h3>
+          <div id="recommendationsArea" class="space-y-3 muted">Recommendations will appear after results arrive.</div>
+        </div>
+      </div>
 
-  #statusArea {
-    display: none;
-    margin-top: 30px;
-    background: #1a1a1a;
-    padding: 20px;
-    border-radius: 12px;
-    border: 1px solid #222;
-  }
+      <div class="glass rounded-2xl p-5">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+          <h3 class="brand text-xl neon-text">Detected Services</h3>
+          <div class="flex gap-3">
+            <button id="downloadCsvBtn" class="hidden px-4 py-2 rounded-full border border-slate-600 hover-glow">Download CSV</button>
+            <button id="downloadJsonBtn" class="hidden px-4 py-2 rounded-full border border-slate-600 hover-glow">Download JSON</button>
+          </div>
+        </div>
+        <div id="resultArea" class="overflow-x-auto"></div>
+      </div>
+    </div>
+  </section>
 
-  #statusArea h3 {
-    color: #ccc;
-    font-size: 1.1rem;
-    border-bottom: 1px solid #222;
-    padding-bottom: 10px;
-    margin-top: 0;
-  }
+  <aside class="space-y-6">
+    <section class="glass rounded-3xl p-6">
+      <h3 class="brand text-xl neon-text mb-4">Why this upgrade helps</h3>
+      <ul class="space-y-3 text-sm muted">
+        <li>Preset-driven recon reduces setup time for common attack surfaces.</li>
+        <li>Per-scan exposure scoring helps prioritize risky systems first.</li>
+        <li>JSON and CSV exports make reporting easier for audits and blue-team handoff.</li>
+        <li>User-owned scan history closes the previous information disclosure gap.</li>
+      </ul>
+    </section>
 
-  #scanStatus {
-    color: #00ffc6;
-    font-weight: 600;
-    margin-left: 5px;
-  }
+    <section class="glass rounded-3xl p-6">
+      <h3 class="brand text-xl neon-text mb-4">Preset Guide</h3>
+      <div class="space-y-4 text-sm">
+        <div>
+          <div class="font-semibold">Quick Recon</div>
+          <p class="muted">Fast baseline visibility for the first 1024 ports.</p>
+        </div>
+        <div>
+          <div class="font-semibold">Web Surface</div>
+          <p class="muted">Focuses on application, reverse-proxy, and alternate HTTP/S listeners.</p>
+        </div>
+        <div>
+          <div class="font-semibold">Remote Access</div>
+          <p class="muted">Highlights SSH, RDP, VNC, SMB, and related admin exposure.</p>
+        </div>
+        <div>
+          <div class="font-semibold">Database Exposure</div>
+          <p class="muted">Checks whether data services are reachable from the scanned surface.</p>
+        </div>
+      </div>
+    </section>
+  </aside>
+</div>
+{% endblock %}
 
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 15px;
-    font-size: 0.9rem;
-  }
-
-  th,
-  td {
-    border: 1px solid #222;
-    padding: 10px 8px;
-    text-align: center;
-    vertical-align: top;
-  }
-
-  th {
-    background: #222;
-    color: #00ffc6;
-    font-weight: 700;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-
-  .open {
-    color: #00ff7f;
-    font-weight: 600;
-  }
-
-  .closed {
-    color: #888;
-  }
-
-  .filtered {
-    color: #ffaa00;
-  }
-
-  .failed {
-    color: #ff4d4d;
-  }
-
-  #downloadBtn {
-    display: none;
-    margin: 20px auto 0;
-    background: #00ffc6;
-    color: #000;
-    border: none;
-    padding: 10px 24px;
-    border-radius: 30px;
-    cursor: pointer;
-    transition: background 0.3s;
-    width: auto;
-  }
-
-  #downloadBtn:hover {
-    background: #00d4a3;
-  }
-
-  .loading-dots {
-    display: inline-block;
-    font-weight: bold;
-    color: #00ffc6;
-    animation: blink 1.5s infinite;
-  }
-
-  @keyframes blink {
-    0%,
-    20% {
-      opacity: 0.2;
-    }
-    50% {
-      opacity: 1;
-    }
-    100% {
-      opacity: 0.2;
-    }
-  }
-</style>
-{% endblock %} {% block content %}
-<main class="scanner mx-auto  w-full max-w-3xl glass  rounded-xl shadow-lg">
-
-  <h2 class="text-center brand text-2xl neon-text mb-6">
-    Port & Service Enumeration
-  </h2>
-
-  <div id="messageArea"></div>
-
-  <label for="target" class="block text-slate-300 font-semibold my-4">
-    Target (IP or Domain name)
-  </label>
-  <input id="target"
-         class="w-full px-4 py-3 rounded bg-black/40 border border-slate-700 focus:border-emerald-400"
-         placeholder="example.com or 45.33.32.156" />
-
-  <label for="ports" class="block text-slate-300 font-semibold my-4">
-    Ports (Range or Comma-separated)
-  </label>
-  <input id="ports"
-         class="w-full px-4 py-3 rounded bg-black/40 border border-slate-700 focus:border-emerald-400"
-         placeholder="1-1024 or 22,80,443"
-         value="1-1024" />
-
-  <button id="startBtn"
-          class="mt-6 w-full px-6 py-3 bg-emerald-400 text-black font-semibold rounded hover:bg-emerald-300 transition">
-    <i class="fas fa-rocket"></i> Start Scan
-  </button>
-
-  <div id="statusArea" class="hidden mt-8 p-5 bg-black/40 border border-slate-700 rounded-lg">
-      <h3 class="text-slate-200 text-lg font-semibold mb-3">
-        Scan Status: <span id="scanStatus" class="text-emerald-400 font-bold"></span>
-        <span class="loading-dots">...</span>
-      </h3>
-      <div id="resultArea"></div>
-
-      <button id="downloadBtn"
-              class="hidden mt-5 px-5 py-2 bg-emerald-400 text-black rounded hover:bg-emerald-300">
-        <i class="fas fa-download"></i> Download CSV
-      </button>
-  </div>
-
-</main>
-{% endblock %} {% block extra_scripts %}
+{% block extra_scripts %}
+{{ scan_presets|json_script:'scan-presets-data' }}
 <script>
-  const startBtn = document.getElementById("startBtn");
-  const statusArea = document.getElementById("statusArea");
-  const statusEl = document.getElementById("scanStatus");
-  const resultArea = document.getElementById("resultArea");
-  const downloadBtn = document.getElementById("downloadBtn");
-  const messageArea = document.getElementById("messageArea"); // ENHANCEMENT: New element reference
-  const targetInput = document.getElementById("target");
-  const portsInput = document.getElementById("ports");
+  const presetConfig = JSON.parse(document.getElementById('scan-presets-data').textContent);
+  const startBtn = document.getElementById('startBtn');
+  const statusArea = document.getElementById('statusArea');
+  const statusEl = document.getElementById('scanStatus');
+  const resultArea = document.getElementById('resultArea');
+  const findingsArea = document.getElementById('findingsArea');
+  const recommendationsArea = document.getElementById('recommendationsArea');
+  const summaryGrid = document.getElementById('summaryGrid');
+  const messageArea = document.getElementById('messageArea');
+  const targetInput = document.getElementById('target');
+  const portsInput = document.getElementById('ports');
+  const profileInput = document.getElementById('profile');
+  const resolvedTarget = document.getElementById('resolvedTarget');
+  const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+  const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+  const loadingDots = document.getElementById('loadingDots');
+  const activePresetLabel = document.getElementById('activePresetLabel');
 
-  // ENHANCEMENT: Helper to display errors
-  function displayError(message) {
-    messageArea.textContent = "❌ " + message;
-    messageArea.style.display = "block";
+  function updatePresetVisualState() {
+    document.querySelectorAll('.preset-btn').forEach((button) => {
+      const active = button.dataset.profile === profileInput.value;
+      button.classList.toggle('border-emerald-300', active);
+      button.classList.toggle('bg-emerald-400/10', active);
+      button.classList.toggle('border-slate-700', !active);
+    });
+
+    const config = presetConfig[profileInput.value];
+    activePresetLabel.textContent = config ? `${config.label} selected` : 'Custom preset selected';
   }
 
-  function clearMessages() {
-    messageArea.style.display = "none";
-    messageArea.textContent = "";
+  document.querySelectorAll('.preset-btn').forEach((button) => {
+    button.addEventListener('click', () => {
+      profileInput.value = button.dataset.profile;
+      portsInput.value = button.dataset.ports;
+      updatePresetVisualState();
+    });
+  });
+
+  profileInput.addEventListener('change', () => {
+    const config = presetConfig[profileInput.value];
+    if (config) {
+      portsInput.value = config.ports;
+    }
+    updatePresetVisualState();
+  });
+
+  function showMessage(message, isError = true) {
+    messageArea.textContent = message;
+    messageArea.className = isError
+      ? 'rounded-2xl px-4 py-3 mb-5 border text-sm border-rose-500/60 bg-rose-950/40 text-rose-100'
+      : 'rounded-2xl px-4 py-3 mb-5 border text-sm border-emerald-500/60 bg-emerald-950/30 text-emerald-100';
   }
 
-  startBtn.addEventListener("click", async () => {
-    clearMessages();
-    const target = targetInput.value.trim();
-    const ports = portsInput.value.trim() || "1-1024";
+  function clearMessage() {
+    messageArea.className = 'hidden';
+    messageArea.textContent = '';
+  }
 
-    if (!target) {
-      displayError("Please enter a valid target (IP or domain).");
+  function riskClass(score) {
+    if (score >= 60) return 'text-rose-400';
+    if (score >= 30) return 'text-amber-300';
+    return 'text-emerald-300';
+  }
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  function withLineBreaks(value) {
+    return escapeHtml(value).replaceAll('\n', '<br>');
+  }
+
+  function renderSummary(summary) {
+    const cards = [
+      { label: 'Risk Score', value: summary.risk_score ?? 0, extraClass: riskClass(summary.risk_score ?? 0) },
+      { label: 'Open Ports', value: summary.open_ports ?? 0, extraClass: 'text-emerald-300' },
+      { label: 'High Risk Ports', value: summary.high_risk_ports ?? 0, extraClass: 'text-rose-400' },
+      { label: 'Filtered Ports', value: summary.filtered_ports ?? 0, extraClass: 'text-sky-300' },
+    ];
+
+    summaryGrid.innerHTML = cards.map((card) => `
+      <div class="glass rounded-2xl p-5">
+        <div class="muted text-sm">${card.label}</div>
+        <div class="text-3xl font-semibold mt-2 ${card.extraClass}">${card.value}</div>
+      </div>
+    `).join('');
+  }
+
+  function renderFindings(findings) {
+    if (!findings?.length) {
+      findingsArea.innerHTML = '<p class="muted">No critical findings were detected in the current result set.</p>';
       return;
     }
 
-    // ENHANCEMENT: Disable button and show loading immediately
-    startBtn.disabled = true;
-    startBtn.innerHTML =
-      '<i class="fas fa-spinner fa-spin"></i> Initializing...';
+    findingsArea.innerHTML = findings.map((finding) => `
+      <div class="border border-slate-800/70 rounded-2xl p-4">
+        <div class="flex items-center justify-between gap-3">
+          <div class="font-semibold">${escapeHtml(finding.title)}</div>
+          <span class="text-xs px-2 py-1 rounded-full bg-slate-900/70">${escapeHtml(finding.severity)}</span>
+        </div>
+        <div class="muted text-sm mt-2">${escapeHtml(finding.category)} • Port ${escapeHtml(finding.port)}</div>
+        <p class="text-sm mt-3">${escapeHtml(finding.recommendation)}</p>
+        ${finding.ai_detail ? `
+          <details class="mt-3 border border-slate-800/70 rounded-xl p-3">
+            <summary class="cursor-pointer text-sm text-emerald-300">AI Detail (${escapeHtml(finding.ai_provider || 'local')})</summary>
+            <div class="text-sm muted mt-2 leading-relaxed">${withLineBreaks(finding.ai_detail)}</div>
+          </details>
+        ` : ''}
+      </div>
+    `).join('');
+  }
 
-    statusArea.style.display = "block";
-    statusEl.textContent = "Starting...";
-    resultArea.innerHTML =
-      "<em>Initializing connection to backend scan worker...</em>";
-    downloadBtn.style.display = "none";
+  function renderRecommendations(recommendations) {
+    if (!recommendations?.length) {
+      recommendationsArea.innerHTML = '<p class="muted">Recommendations will appear after a completed scan.</p>';
+      return;
+    }
+
+    recommendationsArea.innerHTML = recommendations.map((item) => `
+      <div class="border border-slate-800/70 rounded-2xl p-4 text-sm">${escapeHtml(item)}</div>
+    `).join('');
+  }
+
+  function renderResults(results) {
+    if (!results?.length) {
+      resultArea.innerHTML = '<p class="muted">No open or relevant ports were returned for the selected range.</p>';
+      return;
+    }
+
+    resultArea.innerHTML = `
+      <table class="w-full text-sm border-collapse min-w-[760px]">
+        <thead>
+          <tr class="text-left border-b border-slate-800/80 text-slate-300">
+            <th class="py-3 pr-3">Port</th>
+            <th class="py-3 pr-3">Name</th>
+            <th class="py-3 pr-3">State</th>
+            <th class="py-3 pr-3">Service</th>
+            <th class="py-3 pr-3">Risk</th>
+            <th class="py-3 pr-3">Category</th>
+            <th class="py-3 pr-3">Description</th>
+            <th class="py-3">AI Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${results.map((row) => `
+            <tr class="border-b border-slate-900/80 align-top">
+              <td class="py-3 pr-3 font-semibold">${escapeHtml(row.port)}</td>
+              <td class="py-3 pr-3">${escapeHtml(row.name)}</td>
+              <td class="py-3 pr-3">${escapeHtml(row.state)}</td>
+              <td class="py-3 pr-3">${escapeHtml(row.service || '-')}</td>
+              <td class="py-3 pr-3">${escapeHtml(row.risk_level)}</td>
+              <td class="py-3 pr-3">${escapeHtml(row.category)}</td>
+              <td class="py-3 pr-3">${escapeHtml(row.description)}</td>
+              <td class="py-3">
+                ${row.ai_detail ? `
+                  <details class="border border-slate-800/70 rounded-xl p-2">
+                    <summary class="cursor-pointer text-emerald-300 text-xs">${escapeHtml((row.ai_provider || 'local').toUpperCase())}</summary>
+                    <div class="muted mt-2 leading-relaxed">${withLineBreaks(row.ai_detail)}</div>
+                  </details>
+                ` : '<span class="muted text-xs">N/A</span>'}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) {
+      return parts.pop().split(';').shift();
+    }
+    return '';
+  }
+
+  let pollInterval = null;
+
+  startBtn.addEventListener('click', async () => {
+    clearMessage();
+    const target = targetInput.value.trim();
+    const ports = portsInput.value.trim();
+    const profile = profileInput.value;
+
+    if (!target) {
+      showMessage('Please enter a target host or IP address.');
+      return;
+    }
+
+    startBtn.disabled = true;
+    startBtn.textContent = 'Initializing Scan...';
+    statusArea.classList.remove('hidden');
+    statusEl.textContent = 'Starting';
+    resolvedTarget.textContent = '-';
+    loadingDots.style.display = 'inline';
+    renderSummary({ risk_score: 0, open_ports: 0, high_risk_ports: 0, filtered_ports: 0 });
+    renderFindings([]);
+    renderRecommendations([]);
+    resultArea.innerHTML = '<p class="muted">Waiting for scan results...</p>';
+    downloadCsvBtn.classList.add('hidden');
+    downloadJsonBtn.classList.add('hidden');
 
     try {
-      const resp = await fetch("/api/start_scan/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target, ports }),
+      const response = await fetch('/api/start_scan/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({ target, ports, profile })
       });
-
-      const data = await resp.json();
-      console.log("Scan started:", data);
-
-      if (resp.ok) {
-        pollStatus(data.scan_db_id);
-      } else {
-        // ENHANCEMENT: Handle API errors more gracefully
-        const errorMsg =
-          data.error || data.detail || "An unexpected API error occurred.";
-        displayError("Scan failed to start: " + errorMsg);
-        statusEl.textContent = "FAILED";
-        resultArea.innerHTML = "";
-        startBtn.disabled = false;
-        startBtn.innerHTML = '<i class="fas fa-rocket"></i> Start Scan';
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to start scan.');
       }
+      showMessage(`Scan queued for ${data.resolved_target} using the ${data.profile} profile.`, false);
+      pollStatus(data.scan_db_id);
     } catch (error) {
-      displayError("Network error: Could not reach the API server.");
-      statusEl.textContent = "FAILED";
-      resultArea.innerHTML = "";
       startBtn.disabled = false;
-      startBtn.innerHTML = '<i class="fas fa-rocket"></i> Start Scan';
+      startBtn.textContent = 'Start Cyber Scan';
+      statusEl.textContent = 'Failed';
+      loadingDots.style.display = 'none';
+      showMessage(error.message || 'Network error while starting scan.');
     }
   });
 
-  let pollInterval;
-  // ENHANCEMENT: Define risk level colors for table rows
-  const RISK_COLORS = {
-    Critical: "color: #ff4d4d; font-weight: 700;",
-    High: "color: #ff7f4d; font-weight: 600;",
-    Medium: "color: #ffaa00;",
-    Low: "color: #00ff7f;",
-  };
-
-  async function pollStatus(scan_db_id) {
-    // Clear any previous interval
+  async function pollStatus(scanId) {
     if (pollInterval) clearInterval(pollInterval);
 
     async function check() {
       try {
-        const r = await fetch(`/api/status/${scan_db_id}/`);
-        if (!r.ok) {
-          throw new Error("Failed to fetch scan status.");
-        }
-        const j = await r.json();
-        statusEl.textContent = j.status;
-
-        // ENHANCEMENT: Conditional loading dots visibility
-        const loadingDots = document.querySelector(".loading-dots");
-        if (j.status === "COMPLETED" || j.status === "FAILED") {
-          loadingDots.style.display = "none";
-        } else {
-          loadingDots.style.display = "inline-block";
+        const response = await fetch(`/api/status/${scanId}/`);
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Unable to fetch scan status.');
         }
 
-        if (j.results && j.results.length > 0) {
-          let html = `
-                <p style="color: #ccc; font-size: 0.9em; margin-bottom: 5px;">Results for ${
-                  j.target || "Target"
-                }:</p>
-                <div style="max-height: 400px; overflow-y: auto;"> <table>
-                    <thead>
-                      <tr>
-                        <th>Port</th>
-                        <th>Name</th>
-                        <th>State</th>
-                        <th>Service</th>
-                        <th>Risk</th>
-                        <th style="text-align:left;">Description</th>
-                        <th style="text-align:left;">Usage</th>
-                      </tr>
-                    </thead>
-                    <tbody>`;
+        statusEl.textContent = data.status;
+        resolvedTarget.textContent = data.requested_target || data.target;
+        renderSummary(data.summary || {});
+        renderFindings(data.findings || []);
+        renderRecommendations(data.summary?.recommendations || []);
+        renderResults(data.results || []);
 
-          j.results.forEach((row) => {
-            // ENHANCEMENT: Use class for state, use inline style for risk based on map
-            const riskStyle = RISK_COLORS[row.risk_level] || "color: #ccc;";
-            html += `
-                  <tr>
-                    <td>${row.port}</td>
-                    <td>${row.name}</td>
-                    <td class="${row.state.toLowerCase()}">${row.state}</td>
-                    <td>${row.service || "-"}</td>
-                    <td style="${riskStyle}">${row.risk_level}</td>
-                    <td style="text-align:left; max-width: 200px;">${
-                      row.description
-                    }</td>
-                    <td style="text-align:left; max-width: 200px;">${
-                      row.usage
-                    }</td>
-                  </tr>`;
-          });
-          html += "</tbody></table></div>"; // Close scrollable div and table
-          resultArea.innerHTML = html;
-        } else if (
-          j.status === "COMPLETED" &&
-          (!j.results || j.results.length === 0)
-        ) {
-          // ENHANCEMENT: Message for no open ports found
-          resultArea.innerHTML =
-            '<p style="color: #00ffc6; font-weight: 600;">✅ Scan complete. No open ports found in the specified range.</p>';
-        } else if (j.status === "FAILED") {
-          resultArea.innerHTML =
-            '<p style="color: #ff4d4d; font-weight: 600;">❌ Scan failed. Check the target or port range.</p>';
-        }
-
-        if (j.status === "COMPLETED" || j.status === "FAILED") {
+        if (data.status === 'COMPLETED' || data.status === 'FAILED') {
           clearInterval(pollInterval);
-          // ENHANCEMENT: Re-enable start button
+          pollInterval = null;
+          loadingDots.style.display = 'none';
           startBtn.disabled = false;
-          startBtn.innerHTML = '<i class="fas fa-rocket"></i> Start Scan';
-
-          if (j.status === "COMPLETED" && j.results && j.results.length > 0) {
-            downloadBtn.style.display = "inline-block";
-            downloadBtn.onclick = () =>
-              (window.location = `/api/export/${scan_db_id}/`);
+          startBtn.textContent = 'Start Cyber Scan';
+          if (data.status === 'COMPLETED') {
+            downloadCsvBtn.classList.remove('hidden');
+            downloadJsonBtn.classList.remove('hidden');
+            downloadCsvBtn.onclick = () => {
+              window.location = `/api/export/${scanId}/csv/`;
+            };
+            downloadJsonBtn.onclick = () => {
+              window.location = `/api/export/${scanId}/json/`;
+            };
           }
         }
-      } catch (e) {
-        console.error("Polling error:", e);
+      } catch (error) {
         clearInterval(pollInterval);
-        statusEl.textContent = "ERROR";
-        resultArea.innerHTML =
-          '<p style="color: #ff4d4d; font-weight: 600;">A communication error occurred during status check.</p>';
+        pollInterval = null;
+        loadingDots.style.display = 'none';
         startBtn.disabled = false;
-        startBtn.innerHTML = '<i class="fas fa-rocket"></i> Start Scan';
-        const loadingDots = document.querySelector(".loading-dots");
-        loadingDots.style.display = "none";
+        startBtn.textContent = 'Start Cyber Scan';
+        statusEl.textContent = 'Error';
+        showMessage(error.message || 'A communication error occurred while polling.');
       }
     }
 
-    check();
-    // Start polling every 3 seconds
+    await check();
     pollInterval = setInterval(check, 3000);
   }
+
+  updatePresetVisualState();
 </script>
 {% endblock %}

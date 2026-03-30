@@ -1,0 +1,54 @@
+{% extends "scanner/base.html" %}
+{% block title %}SPIDER - Port Scan History{% endblock %}
+
+{% block content %}
+<div class="glass rounded-3xl p-6 md:p-8">
+  <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+    <div>
+      <p class="uppercase tracking-[0.3em] text-xs muted mb-2">Audit Trail</p>
+      <h2 class="brand text-3xl neon-text">Port Scan History</h2>
+      <p class="muted mt-3">Review past reconnaissance runs, their scan profile, current status, and calculated exposure score.</p>
+    </div>
+    <a href="{% url 'scanner' %}" class="px-5 py-3 rounded-full bg-emerald-300 text-slate-950 font-semibold">New Scan</a>
+  </div>
+
+  {% if scans %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="text-left border-b border-slate-800/80 text-slate-300">
+          <th class="py-3 pr-3">Target</th>
+          <th class="py-3 pr-3">Resolved IP</th>
+          <th class="py-3 pr-3">Profile</th>
+          <th class="py-3 pr-3">Ports</th>
+          <th class="py-3 pr-3">Status</th>
+          <th class="py-3 pr-3">Risk</th>
+          <th class="py-3 pr-3">Created</th>
+          <th class="py-3 whitespace-nowrap">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for scan in scans %}
+        <tr class="border-b border-slate-900/80 align-top">
+          <td class="py-4 pr-3 font-semibold">{{ scan.requested_target|default:scan.target }}</td>
+          <td class="py-4 pr-3">{{ scan.target }}</td>
+          <td class="py-4 pr-3">{{ scan.scan_profile|title }}</td>
+          <td class="py-4 pr-3">{{ scan.port_range }}</td>
+          <td class="py-4 pr-3">{{ scan.status }}</td>
+          <td class="py-4 pr-3 {% if scan.risk_score >= 60 %}text-rose-400{% elif scan.risk_score >= 30 %}text-amber-300{% else %}text-emerald-300{% endif %}">{{ scan.risk_score }}</td>
+          <td class="py-4 pr-3">{{ scan.created_at|date:"Y-m-d H:i" }}</td>
+          <td class="py-4 whitespace-nowrap">
+            <a href="{% url 'scan_detail' scan.id %}" class="inline-flex items-center justify-center min-w-[110px] px-4 py-2 rounded-full border border-slate-700 hover-glow text-xs whitespace-nowrap">Open Details</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="rounded-2xl border border-dashed border-slate-700 p-8 text-center muted">
+    No scans recorded yet. Run a port scan to start building a cybersecurity audit trail.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
